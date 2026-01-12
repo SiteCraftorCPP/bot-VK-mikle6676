@@ -1,0 +1,15 @@
+[Unit]
+Description=VK Bot for АТ СЕРВИС
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/bot-vk-mikle6676
+Environment="PYTHONIOENCODING=utf-8"
+ExecStart=/usr/bin/python3 /opt/bot-vk-mikle6676/bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
