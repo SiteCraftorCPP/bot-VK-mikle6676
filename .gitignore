@@ -27,6 +27,7 @@ ENV/
 *.log
 logs/
 *.txt
+!requirements.txt
 
 # OS
 .DS_Store
