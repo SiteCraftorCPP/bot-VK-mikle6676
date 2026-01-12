@@ -35,19 +35,47 @@ deactivate
 
 ### 5. Создание .env файла
 ```bash
-nano .env
-```
-
-Вставьте следующее (замените на свои значения):
-```
-GROUP_TOKEN=ваш_токен_группы_vk
+cat > .env << 'EOF'
+GROUP_TOKEN=vk1.a.VlnzNFssC4gf-KhyP0IIWhNE0NU1DT4Cxm15aafDvWyXhLtyiBuD5yOVE33Swc2GuEvkS_9uQCTIFNXhcF6GQtQaqQzNYfw8eZmkpzGOlEVkbBRWAS98F0-5WpaGDweIt9Hdd4sbEkc2MSikyjHm40uW4jPujk8SqybMxvvt-C5V3frv2GvnfslKOOa5FQqNMipyJx7rSCmq22RiGx1kXA
 ADMIN_IDS=782498140,325219251
-PHOTO_ATTACHMENT=ваш_photo_attachment
+PHOTO_ATTACHMENT=
+EOF
 ```
 
-Сохраните: `Ctrl+O`, `Enter`, `Ctrl+X`
+### 6. Копирование фото на VPS (с локального компьютера)
+```bash
+# Выполните на ЛОКАЛЬНОМ компьютере:
+scp Image/photo1.jpg root@85.239.35.34:/opt/bot-vk-mikle6676/Image/
+```
 
-### 6. Установка systemd сервиса
+Или создайте папку и загрузите фото вручную:
+```bash
+# На VPS:
+mkdir -p Image
+# Затем загрузите фото через SFTP или скопируйте другим способом
+```
+
+### 7. Загрузка фото в VK и получение attachment
+```bash
+cd /opt/bot-vk-mikle6676
+source venv/bin/activate
+python3 upload_photo.py Image/photo1.jpg
+deactivate
+```
+
+Скопируйте полученный `PHOTO_ATTACHMENT=photo...` и обновите `.env`:
+```bash
+nano .env
+# Замените PHOTO_ATTACHMENT= на полученное значение
+```
+
+Или используйте автоматический скрипт:
+```bash
+chmod +x setup_photo.sh
+./setup_photo.sh
+```
+
+### 8. Установка systemd сервиса
 ```bash
 cp bot.service /etc/systemd/system/bot-vk.service
 sed -i "s|/opt/bot-vk-mikle6676|$(pwd)|g" /etc/systemd/system/bot-vk.service
@@ -56,12 +84,12 @@ systemctl enable bot-vk.service
 systemctl start bot-vk.service
 ```
 
-### 7. Проверка работы
+### 9. Проверка работы
 ```bash
 systemctl status bot-vk.service
 ```
 
-### 8. Просмотр логов
+### 10. Просмотр логов
 ```bash
 journalctl -u bot-vk.service -f
 ```
@@ -82,6 +110,8 @@ systemctl stop bot-vk.service
 ```bash
 cd /opt/bot-vk-mikle6676
 git pull
-pip3 install -r requirements.txt
+source venv/bin/activate
+pip install -r requirements.txt
+deactivate
 systemctl restart bot-vk.service
 ```
