@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=root
 WorkingDirectory=/opt/bot-vk-mikle6676
 Environment="PYTHONIOENCODING=utf-8"
-ExecStart=/usr/bin/python3 /opt/bot-vk-mikle6676/bot.py
+ExecStart=/opt/bot-vk-mikle6676/venv/bin/python3 /opt/bot-vk-mikle6676/bot.py
 Restart=always
 RestartSec=10
 

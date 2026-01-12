@@ -5,8 +5,10 @@
 echo "Обновление кода из Git..."
 git pull origin main
 
-echo "Установка зависимостей..."
-pip3 install -r requirements.txt
+echo "Активация виртуального окружения и установка зависимостей..."
+source venv/bin/activate
+pip install -r requirements.txt
+deactivate
 
 echo "Перезапуск сервиса..."
 sudo systemctl restart bot-vk.service
