@@ -9,6 +9,9 @@ env/
 ENV/
 .venv
 
+# Но requirements.txt нужен
+!requirements.txt
+
 # Environment variables
 .env
 .env.local
