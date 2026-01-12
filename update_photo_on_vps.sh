@@ -3,6 +3,15 @@
 
 cd /opt/bot-vk-mikle6676
 
+# Устанавливаем сервис (если не установлен)
+if [ ! -f "/etc/systemd/system/bot-vk.service" ]; then
+    echo "📦 Устанавливаю сервис..."
+    cp bot.service /etc/systemd/system/bot-vk.service
+    systemctl daemon-reload
+    systemctl enable bot-vk.service
+    echo "✅ Сервис установлен"
+fi
+
 # Attachment string, полученный локально
 ATTACHMENT="photo-184746682_457239108"
 
@@ -15,14 +24,6 @@ fi
 sed -i '/^PHOTO_ATTACHMENT=/d' .env
 echo "PHOTO_ATTACHMENT=$ATTACHMENT" >> .env
 echo "✅ .env обновлен: PHOTO_ATTACHMENT=$ATTACHMENT"
-
-# Устанавливаем сервис (если не установлен)
-if [ ! -f "/etc/systemd/system/bot-vk.service" ]; then
-    echo "📦 Устанавливаю сервис..."
-    cp bot.service /etc/systemd/system/bot-vk.service
-    systemctl daemon-reload
-    systemctl enable bot-vk.service
-fi
 
 # Перезапускаем сервис
 echo "🔄 Перезапускаю бота..."
