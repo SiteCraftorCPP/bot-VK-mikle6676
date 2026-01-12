@@ -34,9 +34,11 @@ logs/
 Thumbs.db
 desktop.ini
 
-# Project specific
-Image/
+# Project specific - разрешаем только photo1.jpg
+Image/*
+!Image/photo1.jpg
 *.jpg
+!Image/photo1.jpg
 *.png
 *.jpeg
 *.gif
