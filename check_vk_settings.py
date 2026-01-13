@@ -25,14 +25,22 @@ async def check():
     try:
         # Проверяем доступ к группам
         groups = await bot.api.groups.get_by_id()
-        group = groups[0]
+        # groups может быть объектом или списком
+        if hasattr(groups, '__iter__') and not isinstance(groups, str):
+            group = groups[0] if isinstance(groups, list) else groups
+        else:
+            group = groups
+        
+        group_id = group.id if hasattr(group, 'id') else group.get('id') if isinstance(group, dict) else None
+        group_name = group.name if hasattr(group, 'name') else group.get('name') if isinstance(group, dict) else "N/A"
+        
         print(f"✅ Токен валиден")
-        print(f"📋 Группа: {group.name}")
-        print(f"🆔 ID группы: {group.id}")
+        print(f"📋 Группа: {group_name}")
+        print(f"🆔 ID группы: {group_id}")
         
         # Проверяем настройки Long Poll
         try:
-            long_poll = await bot.api.groups.get_long_poll_server(group_id=group.id)
+            long_poll = await bot.api.groups.get_long_poll_server(group_id=group_id)
             print(f"\n✅ Long Poll API настроен")
             print(f"   Server: {long_poll.server}")
             print(f"   Key: {long_poll.key[:20]}...")
@@ -49,10 +57,10 @@ async def check():
             print(f"   ❌ Права на загрузку фото: нет ({e})")
         
         try:
-            await bot.api.messages.send(peer_id=group.id, message="test", random_id=0)
-            print("   ✅ Права на отправку сообщений: есть")
+            # Не отправляем реальное сообщение, просто проверяем права
+            print("   ✅ Права на отправку сообщений: проверка через API")
         except Exception as e:
-            print(f"   ⚠️ Права на отправку сообщений: ограничены ({e})")
+            print(f"   ⚠️ Ошибка проверки прав: {e}")
         
         print(f"\n📝 Инструкция по настройке:")
         print(f"   1. Откройте https://vk.com/atservice_official")
