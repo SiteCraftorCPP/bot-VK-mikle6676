@@ -96,6 +96,7 @@ class IsNewUserRule(ABCRule[Message]):
 async def send_welcome_message(user_id: int, name: str):
     """Отправка приветственного сообщения с фото"""
     try:
+        print(f"[WELCOME] Отправка приветствия пользователю {user_id} ({name})")
         photo_attachment = os.getenv("PHOTO_ATTACHMENT", "")
         
         welcome_text = f"""{name}, приветствуем Вас 🤝
@@ -109,6 +110,7 @@ async def send_welcome_message(user_id: int, name: str):
 📐 Работаем по проекту и без него, с гарантией на все работы"""
         
         if photo_attachment:
+            print(f"[WELCOME] Отправка с фото: {photo_attachment}")
             await bot.api.messages.send(
                 peer_id=user_id,
                 message=welcome_text,
@@ -116,13 +118,17 @@ async def send_welcome_message(user_id: int, name: str):
                 random_id=0
             )
         else:
+            print(f"[WELCOME] Отправка без фото (PHOTO_ATTACHMENT не установлен)")
             await bot.api.messages.send(
                 peer_id=user_id,
                 message=welcome_text,
                 random_id=0
             )
+        print(f"[WELCOME] ✅ Приветствие отправлено пользователю {user_id}")
     except Exception as e:
-        print(f"Ошибка при отправке приветственного сообщения: {e}")
+        print(f"[WELCOME] ❌ Ошибка при отправке приветственного сообщения пользователю {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 async def send_service_type_selection(user_id: int):
@@ -402,7 +408,11 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
                 )
                 print(f"[OK] Заявка отправлена администратору {admin_id}")
             except Exception as e:
-                print(f"[ERROR] Ошибка отправки заявки администратору {admin_id}: {e}")
+                error_msg = str(e)
+                if "without permission" in error_msg or "Can't send messages" in error_msg:
+                    print(f"[WARN] Администратор {admin_id} не разрешил сообществу писать ему. Пропускаю.")
+                else:
+                    print(f"[ERROR] Ошибка отправки заявки администратору {admin_id}: {e}")
         
         # Отправляем в чат сообщества (если нужно)
         # await bot.api.messages.send(peer_id=2000000001, message=order_message, random_id=0)
@@ -496,15 +506,20 @@ async def handle_button_click(event: MessageEvent):
 async def handle_message_allow(event):
     """Обработка события, когда пользователь разрешает сообществу писать ему"""
     try:
+        print(f"[MESSAGE_ALLOW] Получено событие: {type(event)}")
         # В зависимости от версии API структура может быть разной
         if hasattr(event, 'object'):
             user_id = event.object.user_id
+            print(f"[MESSAGE_ALLOW] user_id из object: {user_id}")
         elif hasattr(event, 'user_id'):
             user_id = event.user_id
+            print(f"[MESSAGE_ALLOW] user_id напрямую: {user_id}")
         else:
             user_id = event.get('user_id', 0)
+            print(f"[MESSAGE_ALLOW] user_id из get: {user_id}")
         
         if user_id and user_id not in user_states:
+            print(f"[MESSAGE_ALLOW] Новый пользователь {user_id}, запускаю приветствие")
             user_states[user_id] = {
                 "state": UserState.NEW,
                 "first_message_time": datetime.now(),
@@ -514,9 +529,13 @@ async def handle_message_allow(event):
                 "contacts": None
             }
             await start_welcome_flow(user_id)
+        else:
+            print(f"[MESSAGE_ALLOW] Пользователь {user_id} уже в системе или user_id=0")
     except Exception as e:
-        print(f"Ошибка при обработке MESSAGE_ALLOW: {e}")
-        print(f"Event structure: {event}")
+        print(f"[MESSAGE_ALLOW] ❌ Ошибка при обработке MESSAGE_ALLOW: {e}")
+        print(f"[MESSAGE_ALLOW] Event structure: {event}")
+        import traceback
+        traceback.print_exc()
 
 
 @bot.on.message()
