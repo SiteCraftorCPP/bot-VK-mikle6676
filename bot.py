@@ -504,22 +504,48 @@ async def handle_button_click(event: MessageEvent):
 
 @bot.on.raw_event(GroupEventType.MESSAGE_ALLOW)
 async def handle_message_allow(event):
-    """Обработка события, когда пользователь разрешает сообществу писать ему"""
+    """Обработка события, когда пользователь разрешает сообществу писать ему
+    
+    Системное уведомление VK появляется автоматически при открытии диалога,
+    если в настройках сообщества включено требование разрешения.
+    """
     try:
-        print(f"[MESSAGE_ALLOW] Получено событие: {type(event)}")
-        # В зависимости от версии API структура может быть разной
-        if hasattr(event, 'object'):
-            user_id = event.object.user_id
-            print(f"[MESSAGE_ALLOW] user_id из object: {user_id}")
-        elif hasattr(event, 'user_id'):
-            user_id = event.user_id
-            print(f"[MESSAGE_ALLOW] user_id напрямую: {user_id}")
-        else:
-            user_id = event.get('user_id', 0)
-            print(f"[MESSAGE_ALLOW] user_id из get: {user_id}")
+        print(f"\n{'='*50}")
+        print(f"[MESSAGE_ALLOW] ✅ ПОЛУЧЕНО СОБЫТИЕ РАЗРЕШЕНИЯ")
+        print(f"[MESSAGE_ALLOW] Тип события: {type(event)}")
         
-        if user_id and user_id not in user_states:
-            print(f"[MESSAGE_ALLOW] Новый пользователь {user_id}, запускаю приветствие")
+        user_id = None
+        
+        # Пробуем разные способы получения user_id в зависимости от структуры события
+        if hasattr(event, 'object'):
+            if hasattr(event.object, 'user_id'):
+                user_id = event.object.user_id
+                print(f"[MESSAGE_ALLOW] user_id из event.object.user_id: {user_id}")
+            elif isinstance(event.object, dict):
+                user_id = event.object.get('user_id')
+                print(f"[MESSAGE_ALLOW] user_id из event.object (dict): {user_id}")
+        
+        if not user_id and hasattr(event, 'user_id'):
+            user_id = event.user_id
+            print(f"[MESSAGE_ALLOW] user_id из event.user_id: {user_id}")
+        
+        if not user_id:
+            # Пробуем получить из словаря
+            if isinstance(event, dict):
+                user_id = event.get('user_id') or (event.get('object', {}).get('user_id') if isinstance(event.get('object'), dict) else None)
+                print(f"[MESSAGE_ALLOW] user_id из dict: {user_id}")
+        
+        if not user_id:
+            print(f"[MESSAGE_ALLOW] ⚠️ Не удалось получить user_id из события")
+            print(f"[MESSAGE_ALLOW] Полная структура события: {event}")
+            print(f"[MESSAGE_ALLOW] Атрибуты события: {dir(event)}")
+            return
+        
+        print(f"[MESSAGE_ALLOW] ✅ User ID: {user_id}")
+        
+        # Запускаем приветствие для нового пользователя
+        if user_id not in user_states:
+            print(f"[MESSAGE_ALLOW] 🆕 Новый пользователь {user_id}, запускаю приветствие")
             user_states[user_id] = {
                 "state": UserState.NEW,
                 "first_message_time": datetime.now(),
@@ -529,8 +555,11 @@ async def handle_message_allow(event):
                 "contacts": None
             }
             await start_welcome_flow(user_id)
+            print(f"[MESSAGE_ALLOW] ✅ Приветствие запущено для пользователя {user_id}")
         else:
-            print(f"[MESSAGE_ALLOW] Пользователь {user_id} уже в системе или user_id=0")
+            print(f"[MESSAGE_ALLOW] ℹ️ Пользователь {user_id} уже в системе, пропускаю")
+        print(f"{'='*50}\n")
+        
     except Exception as e:
         print(f"[MESSAGE_ALLOW] ❌ Ошибка при обработке MESSAGE_ALLOW: {e}")
         print(f"[MESSAGE_ALLOW] Event structure: {event}")
