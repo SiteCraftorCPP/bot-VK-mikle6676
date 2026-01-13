@@ -232,21 +232,11 @@ async def request_contacts(user_id: int):
 
 Мы свяжемся с вами в ближайшее время для уточнения деталей."""
         
-        photo_attachment = os.getenv("PHOTO_ATTACHMENT", "")
-        
-        if photo_attachment:
-            await bot.api.messages.send(
-                peer_id=user_id,
-                message=message_text,
-                attachment=photo_attachment,
-                random_id=0
-            )
-        else:
-            await bot.api.messages.send(
-                peer_id=user_id,
-                message=message_text,
-                random_id=0
-            )
+        await bot.api.messages.send(
+            peer_id=user_id,
+            message=message_text,
+            random_id=0
+        )
         
         user_states[user_id]["state"] = UserState.WAITING_CONTACTS
     except Exception as e:
