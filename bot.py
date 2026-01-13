@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from vkbottle import Bot, Keyboard, KeyboardButtonColor, Text, Callback, GroupEventType
 from vkbottle.bot import Message, MessageEvent
 from vkbottle.dispatch.rules import ABCRule
+from vkbottle.polling import BotPolling
 
 # Загружаем .env с учетом возможного BOM
 env_path = Path(__file__).parent / ".env"
@@ -110,7 +111,6 @@ async def send_welcome_message(user_id: int, name: str):
 📐 Работаем по проекту и без него, с гарантией на все работы"""
         
         if photo_attachment:
-            print(f"[WELCOME] Отправка с фото: {photo_attachment}")
             await bot.api.messages.send(
                 peer_id=user_id,
                 message=welcome_text,
@@ -118,17 +118,19 @@ async def send_welcome_message(user_id: int, name: str):
                 random_id=0
             )
         else:
-            print(f"[WELCOME] Отправка без фото (PHOTO_ATTACHMENT не установлен)")
             await bot.api.messages.send(
                 peer_id=user_id,
                 message=welcome_text,
                 random_id=0
             )
-        print(f"[WELCOME] ✅ Приветствие отправлено пользователю {user_id}")
+        print(f"[WELCOME] Приветствие отправлено")
     except Exception as e:
-        print(f"[WELCOME] ❌ Ошибка при отправке приветственного сообщения пользователю {user_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        error_msg = str(e)
+        print(f"[WELCOME] Ошибка: {error_msg}")
+        # Если нет разрешения - VK покажет системное уведомление
+        if "Can't send" in error_msg or "without permission" in error_msg:
+            print(f"[WELCOME] Нет разрешения - VK покажет системное уведомление")
+        raise
 
 
 async def send_service_type_selection(user_id: int):
@@ -432,6 +434,7 @@ async def start_welcome_flow(user_id: int):
     except:
         name = "Пользователь"
     
+    # Пытаемся отправить приветствие - если разрешения нет, VK покажет системное уведомление
     await send_welcome_message(user_id, name)
     # Автоматически отправляем второе сообщение через 5 секунд
     asyncio.create_task(send_service_type_selection(user_id))
@@ -439,9 +442,9 @@ async def start_welcome_flow(user_id: int):
 
 @bot.on.message(IsNewUserRule())
 async def handle_new_user(message: Message):
-    """Обработка нового пользователя"""
+    """Обработка нового пользователя - когда пользователь пишет первым"""
     user_id = message.from_id
-    print(f"Новый пользователь: {user_id}")
+    print(f"[NEW_USER] Новый пользователь написал первым: {user_id}")
     await start_welcome_flow(user_id)
 
 
@@ -504,52 +507,34 @@ async def handle_button_click(event: MessageEvent):
 
 @bot.on.raw_event(GroupEventType.MESSAGE_ALLOW)
 async def handle_message_allow(event):
-    """Обработка события, когда пользователь разрешает сообществу писать ему
-    
-    Системное уведомление VK появляется автоматически при открытии диалога,
-    если в настройках сообщества включено требование разрешения.
-    
-    ВАЖНО: Это событие приходит ТОЛЬКО если:
-    1. В настройках Long Poll API включено событие "Разрешение на получение"
-    2. Пользователь нажал "Разрешить" в системном уведомлении VK
-    """
+    """Обработка события, когда пользователь разрешает сообществу писать ему"""
     try:
         print(f"\n{'='*50}")
         print(f"[MESSAGE_ALLOW] ✅✅✅ ПОЛУЧЕНО СОБЫТИЕ РАЗРЕШЕНИЯ ✅✅✅")
-        print(f"[MESSAGE_ALLOW] Тип события: {type(event)}")
-        print(f"[MESSAGE_ALLOW] Полная структура события: {event}")
-        print(f"[MESSAGE_ALLOW] Все атрибуты: {[attr for attr in dir(event) if not attr.startswith('_')]}")
         
         user_id = None
         
-        # Пробуем разные способы получения user_id в зависимости от структуры события
+        # Пробуем разные способы получения user_id
         if hasattr(event, 'object'):
             if hasattr(event.object, 'user_id'):
                 user_id = event.object.user_id
-                print(f"[MESSAGE_ALLOW] user_id из event.object.user_id: {user_id}")
             elif isinstance(event.object, dict):
                 user_id = event.object.get('user_id')
-                print(f"[MESSAGE_ALLOW] user_id из event.object (dict): {user_id}")
         
         if not user_id and hasattr(event, 'user_id'):
             user_id = event.user_id
-            print(f"[MESSAGE_ALLOW] user_id из event.user_id: {user_id}")
+        
+        if not user_id and isinstance(event, dict):
+            user_id = event.get('user_id') or (event.get('object', {}).get('user_id') if isinstance(event.get('object'), dict) else None)
         
         if not user_id:
-            # Пробуем получить из словаря
-            if isinstance(event, dict):
-                user_id = event.get('user_id') or (event.get('object', {}).get('user_id') if isinstance(event.get('object'), dict) else None)
-                print(f"[MESSAGE_ALLOW] user_id из dict: {user_id}")
-        
-        if not user_id:
-            print(f"[MESSAGE_ALLOW] ⚠️ Не удалось получить user_id из события")
-            print(f"[MESSAGE_ALLOW] Полная структура события: {event}")
-            print(f"[MESSAGE_ALLOW] Атрибуты события: {dir(event)}")
+            print(f"[MESSAGE_ALLOW] ⚠️ Не удалось получить user_id")
+            print(f"[MESSAGE_ALLOW] Структура: {event}")
             return
         
         print(f"[MESSAGE_ALLOW] ✅ User ID: {user_id}")
         
-        # Запускаем приветствие для нового пользователя
+        # Запускаем приветствие
         if user_id not in user_states:
             print(f"[MESSAGE_ALLOW] 🆕 Новый пользователь {user_id}, запускаю приветствие")
             user_states[user_id] = {
@@ -561,14 +546,11 @@ async def handle_message_allow(event):
                 "contacts": None
             }
             await start_welcome_flow(user_id)
-            print(f"[MESSAGE_ALLOW] ✅ Приветствие запущено для пользователя {user_id}")
-        else:
-            print(f"[MESSAGE_ALLOW] ℹ️ Пользователь {user_id} уже в системе, пропускаю")
+            print(f"[MESSAGE_ALLOW] ✅ Приветствие запущено")
         print(f"{'='*50}\n")
         
     except Exception as e:
-        print(f"[MESSAGE_ALLOW] ❌ Ошибка при обработке MESSAGE_ALLOW: {e}")
-        print(f"[MESSAGE_ALLOW] Event structure: {event}")
+        print(f"[MESSAGE_ALLOW] ❌ Ошибка: {e}")
         import traceback
         traceback.print_exc()
 
@@ -580,15 +562,14 @@ async def handle_message(message: Message):
     text = message.text or ""
     
     print(f"\n{'='*50}")
-    print(f"[MSG] ПОЛУЧЕНО СООБЩЕНИЕ")
-    print(f"User ID: {user_id}")
-    print(f"Текст: '{text}'")
-    print(f"Длина текста: {len(text)}")
-    print(f"Текущие состояния пользователей: {list(user_states.keys())}")
+    print(f"[MSG] ✅✅✅ ПОЛУЧЕНО СООБЩЕНИЕ ✅✅✅")
+    print(f"[MSG] User ID: {user_id}")
+    print(f"[MSG] Текст: '{text}'")
+    print(f"[MSG] Текущие состояния: {list(user_states.keys())}")
     
     # Если пользователь новый, запускаем приветствие
     if user_id not in user_states:
-        print(f"[NEW] НОВЫЙ ПОЛЬЗОВАТЕЛЬ {user_id}")
+        print(f"[NEW] 🆕 НОВЫЙ ПОЛЬЗОВАТЕЛЬ {user_id}")
         user_states[user_id] = {
             "state": UserState.NEW,
             "first_message_time": datetime.now(),
@@ -597,8 +578,19 @@ async def handle_message(message: Message):
             "description": None,
             "contacts": None
         }
-        await start_welcome_flow(user_id)
-        print(f"[OK] Приветствие отправлено пользователю {user_id}")
+        
+        # Пытаемся отправить приветствие
+        print(f"[NEW] Пытаюсь отправить приветствие пользователю {user_id}...")
+        try:
+            await start_welcome_flow(user_id)
+            print(f"[NEW] ✅ Приветствие отправлено!")
+        except Exception as e:
+            error_msg = str(e)
+            print(f"[NEW] ❌ Ошибка отправки: {error_msg}")
+            if "Can't send" in error_msg or "without permission" in error_msg:
+                print(f"[NEW] ⚠️ Нет разрешения на отправку сообщений")
+            import traceback
+            traceback.print_exc()
         return
     
     user_state = user_states[user_id]["state"]
@@ -678,39 +670,42 @@ async def handle_message(message: Message):
     print(f"{'='*50}\n")
 
 
-# Добавляем обработчик всех raw событий для диагностики
-@bot.on.raw_event()
-async def handle_all_events(event):
-    """Обработчик всех событий для диагностики"""
-    try:
-        event_type = type(event).__name__
-        print(f"\n[DEBUG] Получено событие: {event_type}")
-        
-        # Логируем структуру события MESSAGE_ALLOW для диагностики
-        if hasattr(event, 'type') and 'MESSAGE_ALLOW' in str(event.type):
-            print(f"[DEBUG] MESSAGE_ALLOW событие обнаружено!")
-            print(f"[DEBUG] Структура: {event}")
-            print(f"[DEBUG] Атрибуты: {[attr for attr in dir(event) if not attr.startswith('_')]}")
-    except Exception as e:
-        pass  # Игнорируем ошибки в диагностическом обработчике
+# Универсальный обработчик удален
 
 
 if __name__ == "__main__":
-    print("Бот запущен...")
-    print("Проверка подключения...")
-    print("\n📋 Диагностика:")
-    print("   - Обработчик MESSAGE_ALLOW: активен")
-    print("   - Обработчик всех событий: активен (для диагностики)")
-    print("   - Логирование: включено")
-    print("\n⚠️ ВАЖНО: Системное уведомление VK появляется автоматически,")
-    print("   если в настройках Long Poll API включено событие 'Разрешение на получение'")
-    print("   и пользователь еще не разрешил сообществу писать ему.\n")
+    import sys
+    import io
+    # Устанавливаем UTF-8 для консоли Windows
+    if sys.platform == 'win32':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    
+    print("="*60)
+    print("БОТ ЗАПУЩЕН")
+    print("="*60)
+    print("\nАктивные обработчики:")
+    print("   - MESSAGE_ALLOW - обработка разрешений")
+    print("   - MESSAGE - обработка сообщений")
+    print("   - MESSAGE_EVENT - обработка кнопок")
+    print("\nЛОГИРОВАНИЕ: ВКЛЮЧЕНО")
+    print("   Все события будут выводиться в консоль")
+    print("\nВАЖНО:")
+    print("   Системное уведомление VK появляется когда:")
+    print("   1. Пользователь открывает диалог")
+    print("   2. Бот пытается отправить сообщение БЕЗ разрешения")
+    print("   3. VK автоматически показывает уведомление с кнопками")
+    print("\n" + "="*60 + "\n")
     try:
         bot.run_forever()
+    except KeyboardInterrupt:
+        print("\n\n⏹️ Бот остановлен пользователем")
     except Exception as e:
-        print(f"\n❌ Ошибка подключения: {e}")
-        print("\nПроверьте настройки:")
+        print(f"\n\n❌ ОШИБКА ПОДКЛЮЧЕНИЯ: {e}")
+        print("\nПроверьте:")
         print("1. Long Poll API включен в настройках сообщества")
         print("2. Включены события: 'Входящее сообщение' и 'Разрешение на получение'")
-        print("3. Токен создан с правами: 'сообщения сообщества' и 'фотографии сообщества'")
+        print("3. Токен валиден и имеет права: 'сообщения сообщества'")
         print("4. Сообщения сообщества включены в настройках")
+        import traceback
+        traceback.print_exc()
