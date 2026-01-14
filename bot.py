@@ -144,6 +144,8 @@ async def send_service_type_selection(user_id: int):
         keyboard.add(Text("Обслуживание ⚙️"), color=KeyboardButtonColor.PRIMARY)
         keyboard.row()
         keyboard.add(Text("Монтаж 🛠️"), color=KeyboardButtonColor.PRIMARY)
+        keyboard.row()
+        keyboard.add(Text("🔧 Другие работы"), color=KeyboardButtonColor.PRIMARY)
         
         message_text = """✨ Какие работы необходимо выполнить?
 
@@ -371,8 +373,12 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
         contacts = user_info.get("contacts", "не указано")
         
         # Получаем название услуги
-        service_type_name = SERVICE_TYPES.get(service_type, service_type)
-        category_name = SERVICE_CATEGORIES.get(service_type, {}).get(service_category, service_category)
+        if service_type == "other":
+            service_type_name = "🔧 Другие работы"
+            category_name = "Другие работы"
+        else:
+            service_type_name = SERVICE_TYPES.get(service_type, service_type)
+            category_name = SERVICE_CATEGORIES.get(service_type, {}).get(service_category, service_category)
         
         # Получаем имя пользователя
         try:
@@ -597,7 +603,7 @@ async def handle_message(message: Message):
     print(f"[DATA] Данные пользователя: {user_states[user_id]}")
     
     # Обработка текстовых команд от кнопок
-    if text in ["Ремонт 🔧", "Обслуживание ⚙️", "Монтаж 🛠️"]:
+    if text in ["Ремонт 🔧", "Обслуживание ⚙️", "Монтаж 🛠️", "🔧 Другие работы"]:
         print(f"[BUTTON] ОБРАБОТКА КНОПКИ: '{text}'")
         if text == "Ремонт 🔧":
             print(f"[BUTTON] -> Выбран РЕМОНТ")
@@ -608,7 +614,14 @@ async def handle_message(message: Message):
         elif text == "Монтаж 🛠️":
             print(f"[BUTTON] -> Выбран МОНТАЖ")
             await send_service_category_selection(user_id, "installation")
-        print(f"[OK] Категории отправлены")
+        elif text == "🔧 Другие работы":
+            print(f"[BUTTON] -> Выбраны ДРУГИЕ РАБОТЫ")
+            # Сохраняем выбор для отчета
+            user_states[user_id]["service_type"] = "other"
+            user_states[user_id]["service_category"] = "other"
+            # Сразу переходим к запросу описания
+            await request_description(user_id)
+        print(f"[OK] Обработка завершена")
         return
     
     # Обработка категорий услуг
