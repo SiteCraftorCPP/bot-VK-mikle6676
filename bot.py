@@ -145,7 +145,7 @@ async def send_service_type_selection(user_id: int):
         keyboard.row()
         keyboard.add(Text("Монтаж 🛠️"), color=KeyboardButtonColor.PRIMARY)
         keyboard.row()
-        keyboard.add(Text("🔧 Другие работы"), color=KeyboardButtonColor.PRIMARY)
+        keyboard.add(Text("Другие работы 📋"), color=KeyboardButtonColor.PRIMARY)
         
         message_text = """✨ Какие работы необходимо выполнить?
 
@@ -374,7 +374,7 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
         
         # Получаем название услуги
         if service_type == "other":
-            service_type_name = "🔧 Другие работы"
+            service_type_name = "Другие работы 📋"
             category_name = "Другие работы"
         else:
             service_type_name = SERVICE_TYPES.get(service_type, service_type)
@@ -603,7 +603,7 @@ async def handle_message(message: Message):
     print(f"[DATA] Данные пользователя: {user_states[user_id]}")
     
     # Обработка текстовых команд от кнопок
-    if text in ["Ремонт 🔧", "Обслуживание ⚙️", "Монтаж 🛠️", "🔧 Другие работы"]:
+    if text in ["Ремонт 🔧", "Обслуживание ⚙️", "Монтаж 🛠️", "Другие работы 📋"]:
         print(f"[BUTTON] ОБРАБОТКА КНОПКИ: '{text}'")
         if text == "Ремонт 🔧":
             print(f"[BUTTON] -> Выбран РЕМОНТ")
@@ -614,7 +614,7 @@ async def handle_message(message: Message):
         elif text == "Монтаж 🛠️":
             print(f"[BUTTON] -> Выбран МОНТАЖ")
             await send_service_category_selection(user_id, "installation")
-        elif text == "🔧 Другие работы":
+        elif text == "Другие работы 📋":
             print(f"[BUTTON] -> Выбраны ДРУГИЕ РАБОТЫ")
             # Сохраняем выбор для отчета
             user_states[user_id]["service_type"] = "other"
