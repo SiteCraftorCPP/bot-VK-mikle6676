@@ -78,6 +78,15 @@ SERVICE_CATEGORIES = {
 }
 
 
+def get_message_attachments(message: Message) -> list:
+    """Извлекает строки вложений из сообщения для пересылки в VK"""
+    try:
+        strings = message.get_attachment_strings()
+        return list(strings) if strings else []
+    except Exception:
+        return []
+
+
 class IsNewUserRule(ABCRule[Message]):
     """Правило для определения новых пользователей"""
     async def check(self, message: Message) -> bool:
@@ -89,7 +98,8 @@ class IsNewUserRule(ABCRule[Message]):
                 "service_type": None,
                 "service_category": None,
                 "description": None,
-                "contacts": None
+                "contacts": None,
+                "attachments": []
             }
             return True
         return False
@@ -208,7 +218,9 @@ async def send_service_category_selection(user_id: int, service_type: str):
 async def request_description(user_id: int):
     """Запрос описания проблемы"""
     try:
-        message_text = """🔧 Опишите, пожалуйста, ваш вопрос и что именно требуется
+        user_states[user_id]["attachments"] = []
+        message_text = """🔧 Опишите, пожалуйста, ваш вопрос и что именно требуется.
+Можно прикрепить фото или файлы — они дойдут до специалиста.
 
 Мы сразу направим запрос нужному специалисту и подготовим для вас оптимальное решение."""
         
@@ -232,7 +244,7 @@ async def request_contacts(user_id: int):
 — номер телефона
 — адрес проведения работ
 
-Мы свяжемся с вами в ближайшее время для уточнения деталей."""
+Можно прикрепить фото или документы при необходимости."""
         
         await bot.api.messages.send(
             peer_id=user_id,
@@ -325,7 +337,8 @@ async def process_button_click(user_id: int, payload_data, event=None):
                 "service_type": None,
                 "service_category": None,
                 "description": None,
-                "contacts": None
+                "contacts": None,
+                "attachments": []
             }
         
         if action == "service_type":
@@ -372,6 +385,7 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
         service_category = user_info.get("service_category", "не указано")
         description = user_info.get("description", "не указано")
         contacts = user_info.get("contacts", "не указано")
+        attachments = user_info.get("attachments", [])
         
         # Получаем название услуги
         if service_type == "other":
@@ -389,6 +403,7 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
             user_name = f"ID: {user_id}"
         
         confirmation_text = "Оформить заявку" if confirmation_type == "schedule" else "Обратный звонок"
+        attachments_note = f"\n📎 Вложений: {len(attachments)}" if attachments else ""
         
         order_message = f"""🆕 Новая заявка от клиента
 
@@ -402,18 +417,18 @@ async def send_order_to_admin(user_id: int, confirmation_type: str):
 {description}
 
 📞 Контактные данные:
-{contacts}
+{contacts}{attachments_note}
 
 ✅ Тип обработки: {confirmation_text}"""
         
-        # Отправляем всем администраторам
+        # Отправляем всем администраторам (с вложениями, если есть)
         for admin_id in ADMIN_IDS:
             try:
-                await bot.api.messages.send(
-                    peer_id=admin_id,
-                    message=order_message,
-                    random_id=0
-                )
+                send_kwargs = {"peer_id": admin_id, "message": order_message, "random_id": 0}
+                valid_attachments = [a for a in attachments if a and isinstance(a, str)]
+                if valid_attachments:
+                    send_kwargs["attachment"] = ",".join(valid_attachments)
+                await bot.api.messages.send(**send_kwargs)
                 print(f"[OK] Заявка отправлена администратору {admin_id}")
             except Exception as e:
                 error_msg = str(e)
@@ -549,7 +564,8 @@ async def handle_message_allow(event):
                 "service_type": None,
                 "service_category": None,
                 "description": None,
-                "contacts": None
+                "contacts": None,
+                "attachments": []
             }
             await start_welcome_flow(user_id)
             print(f"[MESSAGE_ALLOW] ✅ Приветствие запущено")
@@ -582,7 +598,8 @@ async def handle_message(message: Message):
             "service_type": None,
             "service_category": None,
             "description": None,
-            "contacts": None
+            "contacts": None,
+            "attachments": []
         }
         
         # Пытаемся отправить приветствие
@@ -665,17 +682,33 @@ async def handle_message(message: Message):
             print(f"[OK] Заявка обработана")
             return
     
-    # Обработка описания проблемы
+    # Обработка описания проблемы (принимаем текст, фото, документы)
     if user_state == UserState.WAITING_DESCRIPTION:
         print(f"[DESC] Получено описание проблемы")
-        user_states[user_id]["description"] = text
+        attach_strings = get_message_attachments(message)
+        user_states[user_id].setdefault("attachments", []).extend(attach_strings)
+        desc_text = text.strip() if text else ""
+        if not desc_text and attach_strings:
+            desc_text = "[Приложены фото/файлы]"
+        elif not desc_text:
+            desc_text = "[Без описания]"
+        user_states[user_id]["description"] = desc_text
+        print(f"[DESC] Текст: '{desc_text}', вложений: {len(attach_strings)}")
         await request_contacts(user_id)
         return
     
-    # Обработка контактных данных
+    # Обработка контактных данных (принимаем текст, фото, документы)
     elif user_state == UserState.WAITING_CONTACTS:
         print(f"[CONTACTS] Получены контактные данные")
-        user_states[user_id]["contacts"] = text
+        attach_strings = get_message_attachments(message)
+        user_states[user_id].setdefault("attachments", []).extend(attach_strings)
+        contacts_text = text.strip() if text else ""
+        if not contacts_text and attach_strings:
+            contacts_text = "[Приложены фото/файлы]"
+        elif not contacts_text:
+            contacts_text = "[Не указаны]"
+        user_states[user_id]["contacts"] = contacts_text
+        print(f"[CONTACTS] Текст: '{contacts_text}', вложений: {len(attach_strings)}")
         await send_confirmation(user_id)
         return
     
